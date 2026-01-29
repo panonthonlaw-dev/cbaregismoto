@@ -71,13 +71,26 @@ def connect_gsheet():
         st.stop()
 
 def upload_to_drive(file_obj, filename):
-    if not file_obj: return ""
+    if not file_obj: return None
     try:
         base64_str = base64.b64encode(file_obj.getvalue()).decode('utf-8')
-        payload = {"folder_id": DRIVE_FOLDER_ID, "filename": filename, "file": base64_str, "mimeType": "image/jpeg"}
-        res = requests.post(GAS_APP_URL, json=payload).json()
-        return res.get("link") if res.get("status") == "success" else None
-    except: return None
+        payload = {
+            "folder_id": DRIVE_FOLDER_ID,
+            "filename": filename,
+            "file": base64_str, # ต้องชื่อ 'file' ให้ตรงกับใน GAS
+            "mimeType": "image/jpeg"
+        }
+        res = requests.post(GAS_APP_URL, json=payload, timeout=20)
+        res_json = res.json()
+        
+        if res_json.get("status") == "success":
+            return res_json.get("link")
+        else:
+            st.error(f"GAS Error: {res_json.get('message')}")
+            return None
+    except Exception as e:
+        st.error(f"❌ ระบบส่งรูปขัดข้อง: {e}")
+        return None
 
 def get_img_link(url):
     match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
@@ -156,23 +169,46 @@ if st.session_state['page'] == 'student':
                     sheet = connect_gsheet()
                     if str(std_id) in sheet.col_values(3):
                         st.error("❌ รหัสนี้ลงทะเบียนแล้ว!")
+                        st.session_state.is_loading = False
                     else:
                         progress = st.progress(0)
-                        l_face = upload_to_drive(p_face, f"{std_id}_Face.jpg"); progress.progress(30)
-                        l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg"); progress.progress(60)
-                        l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg"); progress.progress(85)
+                        status_text = st.empty()
                         
-                        sheet.append_row([
-                            datetime.now().strftime('%d/%m/%Y %H:%M'),
-                            f"{prefix}{fname}", str(std_id), f"{level}/{room}",
-                            brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
-                        ])
-                        progress.progress(100)
-                        st.success("✅ ลงทะเบียนสำเร็จ!")
-                        st.balloons()
-                        time.sleep(2)
-                    st.session_state.is_loading = False
-                    st.rerun()
+                        # 1. เริ่มอัปโหลดรูป
+                        status_text.text("📸 กำลังอัปโหลดรูปที่ 1...")
+                        l_face = upload_to_drive(p_face, f"{std_id}_Face.jpg")
+                        progress.progress(30)
+                        
+                        status_text.text("📸 กำลังอัปโหลดรูปที่ 2...")
+                        l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg")
+                        progress.progress(60)
+                        
+                        status_text.text("📸 กำลังอัปโหลดรูปที่ 3...")
+                        l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg")
+                        progress.progress(85)
+
+                        # 🚩 2. จุดสำคัญ: เช็คว่ารูปอัปโหลดสำเร็จครบทุกรูปหรือไม่
+                        if l_face and l_back and l_side:
+                            status_text.text("📝 กำลังบันทึกข้อมูลลงฐานข้อมูล...")
+                            sheet.append_row([
+                                datetime.now().strftime('%d/%m/%Y %H:%M'),
+                                f"{prefix}{fname}", str(std_id), f"{level}/{room}",
+                                brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
+                            ])
+                            progress.progress(100)
+                            status_text.empty()
+                            st.success("✅ ลงทะเบียนและบันทึกรูปภาพสำเร็จ!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.session_state.is_loading = False
+                            st.rerun()
+                        else:
+                            # ❌ ถ้ามีรูปใดรูปหนึ่งเป็น None (อัปโหลดไม่เข้า)
+                            status_text.empty()
+                            progress.empty()
+                            st.error("❌ อัปโหลดรูปภาพไม่สำเร็จ! (ข้อมูลจะไม่ถูกบันทึก) กรุณาตรวจสอบสิทธิ์โฟลเดอร์ Google Drive หรือ GAS URL")
+                            st.session_state.is_loading = False
+
                 except Exception as e:
                     st.error(f"Error: {e}")
                     st.session_state.is_loading = False
