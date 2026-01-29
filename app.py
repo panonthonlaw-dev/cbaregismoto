@@ -63,12 +63,21 @@ def go_to_page(page_name):
     st.rerun()
 
 def connect_gsheet():
-    key_content = st.secrets["textkey"]["json_content"]
-    key_dict = json.loads(key_content, strict=False)
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
-    client = gspread.authorize(creds)
-    return client.open(SHEET_NAME).sheet1
+    try:
+        # ดึงข้อมูลจาก Secrets
+        key_content = st.secrets["textkey"]["json_content"]
+        # ล้างช่องว่างที่อาจติดมา
+        key_content = key_content.strip() 
+        # แปลงเป็น Dictionary
+        key_dict = json.loads(key_content, strict=False)
+        
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+        client = gspread.authorize(creds)
+        return client.open(SHEET_NAME).sheet1
+    except Exception as e:
+        st.error(f"❌ ปัญหากุญแจ JSON: {e}")
+        st.stop()
 
 def load_data():
     try:
