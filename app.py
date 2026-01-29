@@ -182,32 +182,27 @@ if st.session_state['page'] == 'student':
                         l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg"); progress.progress(60)
                         l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg"); progress.progress(85)
                         
-                        # 🚩 ขั้นตอนที่ 2: ใช้คำสั่ง update แทน append_row เพื่อระบุแถวที่ถูกต้อง
-                        new_data = [
-                            datetime.now().strftime('%d/%m/%Y %H:%M'),
-                            f"{prefix}{fname}", str(std_id), f"{level}/{room}",
-                            brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
-                        ]
-                        
-                        # ระบุช่วงที่จะบันทึก เช่น A5:P5
-                        sheet.update(range_name=f"A{next_row}", values=[new_data])
-                        
-                        progress.progress(100)
-                        st.success(f"✅ ลงทะเบียนสำเร็จ! (บันทึกในลำดับที่ {next_row-1})")
-                        st.balloons()
+                        # ตรวจสอบว่ารูปภาพอัปโหลดสำเร็จหรือไม่
+                        if l_face and l_back and l_side:
+                            new_data = [
+                                datetime.now().strftime('%d/%m/%Y %H:%M'),
+                                f"{prefix}{fname}", str(std_id), f"{level}/{room}",
+                                brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
+                            ]
+                            
+                            # ระบุช่วงที่จะบันทึก เช่น A5:P5
+                            sheet.update(range_name=f"A{next_row}", values=[new_data])
+                            
+                            progress.progress(100)
+                            st.success(f"✅ ลงทะเบียนสำเร็จ! (บันทึกในลำดับที่ {next_row-1})")
+                            st.balloons()
+                            # --- แก้ไขตรงนี้: แนวตั้งต้องตรงกัน ---
                             time.sleep(2)
                             st.session_state.is_loading = False
                             st.rerun()
                         else:
-                            # ❌ ถ้ามีรูปใดรูปหนึ่งเป็น None (อัปโหลดไม่เข้า)
-                            status_text.empty()
-                            progress.empty()
-                            st.error("❌ อัปโหลดรูปภาพไม่สำเร็จ! (ข้อมูลจะไม่ถูกบันทึก) กรุณาตรวจสอบสิทธิ์โฟลเดอร์ Google Drive หรือ GAS URL")
+                            st.error("❌ อัปโหลดรูปภาพไม่สำเร็จ! (ข้อมูลจะไม่ถูกบันทึก)")
                             st.session_state.is_loading = False
-
-                except Exception as e:
-                    st.error(f"Error: {e}")
-                    st.session_state.is_loading = False
 
     if st.button("🆔 ดูบัตรอนุญาต (Student Portal)", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
