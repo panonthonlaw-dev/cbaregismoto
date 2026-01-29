@@ -166,39 +166,35 @@ if st.session_state['page'] == 'student':
                 st.session_state.is_loading = False
             else:
                 try:
-                    sheet = connect_gsheet()
-                    if str(std_id) in sheet.col_values(3):
+sheet = connect_gsheet()
+                    
+                    # 🚩 ขั้นตอนที่ 1: หาจำนวนแถวทั้งหมดที่มีข้อมูลอยู่ปัจจุบัน
+                    all_data = sheet.get_all_values()
+                    next_row = len(all_data) + 1 # แถวถัดไปที่ว่างจริงๆ
+                    
+                    # เช็คซ้ำอีกรอบเพื่อความชัวร์ (รหัสประจำตัว)
+                    if str(std_id) in [row[2] for row in all_data if len(row) > 2]:
                         st.error("❌ รหัสนี้ลงทะเบียนแล้ว!")
                         st.session_state.is_loading = False
                     else:
                         progress = st.progress(0)
-                        status_text = st.empty()
+                        l_face = upload_to_drive(p_face, f"{std_id}_Face.jpg"); progress.progress(30)
+                        l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg"); progress.progress(60)
+                        l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg"); progress.progress(85)
                         
-                        # 1. เริ่มอัปโหลดรูป
-                        status_text.text("📸 กำลังอัปโหลดรูปที่ 1...")
-                        l_face = upload_to_drive(p_face, f"{std_id}_Face.jpg")
-                        progress.progress(30)
+                        # 🚩 ขั้นตอนที่ 2: ใช้คำสั่ง update แทน append_row เพื่อระบุแถวที่ถูกต้อง
+                        new_data = [
+                            datetime.now().strftime('%d/%m/%Y %H:%M'),
+                            f"{prefix}{fname}", str(std_id), f"{level}/{room}",
+                            brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
+                        ]
                         
-                        status_text.text("📸 กำลังอัปโหลดรูปที่ 2...")
-                        l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg")
-                        progress.progress(60)
+                        # ระบุช่วงที่จะบันทึก เช่น A5:P5
+                        sheet.update(range_name=f"A{next_row}", values=[new_data])
                         
-                        status_text.text("📸 กำลังอัปโหลดรูปที่ 3...")
-                        l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg")
-                        progress.progress(85)
-
-                        # 🚩 2. จุดสำคัญ: เช็คว่ารูปอัปโหลดสำเร็จครบทุกรูปหรือไม่
-                        if l_face and l_back and l_side:
-                            status_text.text("📝 กำลังบันทึกข้อมูลลงฐานข้อมูล...")
-                            sheet.append_row([
-                                datetime.now().strftime('%d/%m/%Y %H:%M'),
-                                f"{prefix}{fname}", str(std_id), f"{level}/{room}",
-                                brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
-                            ])
-                            progress.progress(100)
-                            status_text.empty()
-                            st.success("✅ ลงทะเบียนและบันทึกรูปภาพสำเร็จ!")
-                            st.balloons()
+                        progress.progress(100)
+                        st.success(f"✅ ลงทะเบียนสำเร็จ! (บันทึกในลำดับที่ {next_row-1})")
+                        st.balloons()
                             time.sleep(2)
                             st.session_state.is_loading = False
                             st.rerun()
