@@ -1,0 +1,13 @@
+streamlit
+pandas
+gspread
+oauth2client
+requests
+reportlab
+plotly
+openpyxl
+supabase
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+Pillow
