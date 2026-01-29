@@ -64,17 +64,22 @@ def go_to_page(page_name):
 
 def connect_gsheet():
     try:
-        # ดึงข้อมูลจาก Secrets
-        key_content = st.secrets["textkey"]["json_content"]
-        # ล้างช่องว่างที่อาจติดมา
-        key_content = key_content.strip() 
-        # แปลงเป็น Dictionary
+        # ดึงข้อมูลจาก Secrets และล้างหัวท้าย
+        key_content = st.secrets["textkey"]["json_content"].strip()
+        
+        # 🚩 ไม้ตายแก้ Invalid \escape: บังคับให้ระบบมอง Backslash เป็นตัวอักษรธรรมดา
+        # โดยการเปลี่ยน \ เป็น \\ เฉพาะจุดที่เป็นตัวแสบ
+        if "\\n" not in key_content:
+            key_content = key_content.replace("\n", "\\n")
+            
         key_dict = json.loads(key_content, strict=False)
         
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
         client = gspread.authorize(creds)
-        return client.open(SHEET_NAME).sheet1
+        
+        # ใช้ชื่อไฟล์จาก Secrets เลย จะได้ไม่พลาด
+        return client.open(st.secrets["SHEET_NAME"]).sheet1
     except Exception as e:
         st.error(f"❌ ปัญหากุญแจ JSON: {e}")
         st.stop()
