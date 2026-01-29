@@ -1,0 +1,53 @@
+name: Wake Up Streamlit App (Playwright Version)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # ปลุกทุก 6 ชั่วโมง
+  workflow_dispatch:
+
+jobs:
+  wake_up:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright
+          playwright install chromium
+
+      - name: Open App and Wait (Simulate Human)
+        run: |
+          python -c "
+          from playwright.sync_api import sync_playwright
+          import time
+
+          with sync_playwright() as p:
+              # เปิดเบราว์เซอร์แบบซ่อนหน้าจอ (Headless)
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              
+              print('🚀 กำลังเดินทางไปที่แอป...')
+              # เปลี่ยน URL_HERE เป็นลิงก์แอปจริงของคุณครู
+              page.goto('https://patwitmotoregis.streamlit.app/')
+              
+              # รอ 15 วินาทีเพื่อให้ WebSocket ทำงานและแอปเริ่ม Boot
+              print('⏳ รอระบบ Boot 15 วินาที...')
+              time.sleep(15)
+              
+              # ถ่ายภาพหน้าจอเก็บไว้ดู (Optional - สำหรับเช็กใน Action logs)
+              page.screenshot(path='app_status.png')
+              print('✅ ปลุกสำเร็จ!')
+              browser.close()
+          "
+      # (Optional) ถ้าอยากให้ Green เหมือนเดิมและมีหลักฐานการปลุก
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-status-screenshot
+          path: app_status.png
