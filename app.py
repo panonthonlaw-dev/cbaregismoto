@@ -166,7 +166,7 @@ if st.session_state['page'] == 'student':
                 st.session_state.is_loading = False
             else:
                 try:
-sheet = connect_gsheet()
+            sheet = connect_gsheet()
                     
                     # 🚩 ขั้นตอนที่ 1: หาจำนวนแถวทั้งหมดที่มีข้อมูลอยู่ปัจจุบัน
                     all_data = sheet.get_all_values()
