@@ -112,7 +112,7 @@ logo_path = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(
 c_logo, c_title = st.columns([1, 8])
 with c_logo: 
     if logo_path: st.image(logo_path, width=90)
-with c_title: st.title(f"ระบบจราจร {SHEET_NAME}")
+with c_title: st.title(f"ระบบจราจร โรงเรียนจันทรุเบกษาอนุสรณ์")
 
 # --- หน้าลงทะเบียน (Student) ---
 if st.session_state['page'] == 'student':
