@@ -223,7 +223,7 @@ def traffic_module():
 cl, ct = st.columns([1, 8])
 with cl: 
     if logo_local_path: st.image(logo_local_path, width=100)
-with ct: st.title(f"ระบบจราจรจันทรุเบกษาอนุสรณ์)
+with ct: st.title(f"ระบบจราจรจันทรุเบกษาอนุสรณ์")
 
 # --- หน้าลงทะเบียน ---
 if st.session_state['page'] == 'student':
