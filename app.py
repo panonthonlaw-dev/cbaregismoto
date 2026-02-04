@@ -35,7 +35,7 @@ UPGRADE_PASSWORD = st.secrets["UPGRADE_PASSWORD"]
 OFFICER_ACCOUNTS = st.secrets["OFFICER_ACCOUNTS"]
 
 # --- 3. Setup หน้าเว็บ ---
-st.set_page_config(page_title=f"ระบบจราจร {SHEET_NAME}", page_icon="🏍️", layout="wide")
+st.set_page_config(page_title=f"ระบบจราจรจันทรุเบกษาอนุสรณ์", page_icon="🏍️", layout="wide")
 
 # --- 4. จัดการ Session State ---
 if 'page' not in st.session_state: st.session_state['page'] = 'student'
@@ -53,15 +53,13 @@ def go_to_page(page_name):
 
 def connect_gsheet():
     try:
-        content = st.secrets["textkey"]["json_content"].strip()
-        # ทำความสะอาด JSON ป้องกัน Error
-        content = content.strip("'").strip('"')
+        content = st.secrets["textkey"]["json_content"].strip().strip("'").strip('"')
         key_dict = json.loads(content.replace('\n', '\\n'), strict=False)
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
         return gspread.authorize(creds).open(SHEET_NAME).sheet1
     except Exception as e:
-        st.error(f"❌ ระบบเชื่อมต่อฐานข้อมูลขัดข้อง: {e}"); st.stop()
+        st.error(f"❌ JSON Error: {e}"); st.stop()
 
 def upload_to_drive(file_obj, filename):
     if not file_obj: return None
@@ -77,27 +75,28 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-# 🚩 จัดการโลโก้โรงเรียน (ให้เรียกใช้ได้ทั้งหน้าเว็บและในบัตร)
+# 🚩 จัดการโลโก้โรงเรียน (ดักทุกชื่อไฟล์ที่อาจจะเป็นไปได้)
 def get_base64_logo():
-    logo_file = next((f for f in ["logo.png", "logo.jpg", "logo.jpeg"] if os.path.exists(f)), None)
-    if logo_file:
+    # กวาดหาไฟล์ที่ชื่อขึ้นต้นด้วย logo
+    logo_file = next((f for f in os.listdir('.') if f.lower().startswith('logo')), None)
+    if logo_file and os.path.isfile(logo_file):
         with open(logo_file, "rb") as f:
             return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}", logo_file
     return None, None
 
 logo_base64, logo_local_path = get_base64_logo()
 
-# --- 🎨 CSS ตกแต่ง (ห้ามแก้ - ชุดเดิมเป๊ะ) ---
-st.markdown(f"""
+# --- 🎨 CSS ตกแต่ง (ห้ามแก้ - เดิมๆ ของคุณครูเลยครับ) ---
+st.markdown("""
     <style>
-        .atm-card {{ width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }}
-        .atm-school-name {{ font-size: 16px; font-weight: bold; color: #1e293b; }}
-        .atm-photo {{ width: 100px; height: 125px; border-radius: 8px; object-fit: cover; border: 1px solid #cbd5e1; }}
-        .atm-score-val {{ font-size: 32px; font-weight: 800; color: #16a34a; }}
+        .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .atm-school-name { font-size: 16px; font-weight: bold; color: #1e293b; }
+        .atm-photo { width: 100px; height: 125px; border-radius: 8px; object-fit: cover; border: 1px solid #cbd5e1; }
+        .atm-score-val { font-size: 32px; font-weight: 800; color: #16a34a; }
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ 5. ฟังก์ชันสร้าง PDF (กันถมดำ)
+# ✅ 5. ฟังก์ชันสร้าง PDF (กันถมดำ + ประวัติครบ)
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
     if os.path.exists(FONT_FILE):
@@ -106,9 +105,8 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
         fn, fb = 'Thai', 'ThaiBold'
     else: fn, fb = 'Helvetica', 'Helvetica-Bold'
     
-    c.setFont(fb, 22); c.drawCentredString(width/2, height - 50, f"แบบทะเบียนประวัติรถ {SHEET_NAME}")
+    c.setFont(fb, 22); c.drawCentredString(width/2, height - 50, f"ทะเบียนประวัติรถ {SHEET_NAME}")
     c.line(50, height - 85, width - 50, height - 85)
-    
     c.setFont(fn, 16); c.drawString(60, height - 115, f"ชื่อ: {vals[1]}"); c.drawString(350, height - 115, f"ยี่ห้อ: {vals[4]}")
     c.drawString(60, height - 135, f"ID: {vals[2]}"); c.drawString(350, height - 135, f"ทะเบียน: {vals[6]}")
     score = str(vals[13]) if str(vals[13]).isdigit() else "100"
@@ -120,13 +118,20 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
             c.drawImage(img, x, y, width=w, height=h, preserveAspectRatio=True, mask='auto')
             c.rect(x, y, w, h, stroke=1, fill=0)
         except: c.rect(x, y, w, h, stroke=1, fill=0)
-
     if face_url: draw_img(face_url, 460, height - 200, 80, 100)
     draw_img(img_url1, 60, height - 415, 230, 180); draw_img(img_url2, 305, height - 415, 230, 180)
     
+    c.setFont(fb, 14); c.drawString(60, 350, "📝 ประวัติบันทึกความประพฤติ:")
+    c.setFont(fn, 12); raw_h = str(vals[12]); h_text = raw_h if raw_h.lower() != "nan" else "ไม่พบประวัติ"
+    to = c.beginText(70, 335); to.setLeading(14)
+    for line in h_text.split('\n'):
+        for wl in textwrap.wrap(line, width=90): to.textLine(wl)
+    c.drawText(to)
+    
+    c.setFont(fn, 10); c.drawRightString(width-50, 30, f"ผู้พิมพ์: {printed_by} | {datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')}")
     c.save(); buffer.seek(0); return buffer
 
-# ✅ 6. MODULE: TRAFFIC (ค้นหา + แก้ไข + เพิ่ม/หักแต้ม + เลื่อนชั้น)
+# ✅ 6. MODULE: TRAFFIC (ค้นหา + แก้ไข + เพิ่ม/หักคะแนน + เลื่อนชั้น)
 def traffic_module():
     sheet = connect_gsheet()
     if st.session_state.df_tra is None:
@@ -159,7 +164,7 @@ def traffic_module():
                                     st.session_state.edit_data = v; st.session_state.traffic_page = 'edit'; st.rerun()
 
                             with st.form(key=f"sc_form_{i}"):
-                                pts = st.number_input("ระบุแต้ม", 1, 50, 5); note = st.text_area("หมายเหตุ")
+                                pts = st.number_input("ระบุแต้ม", 1, 50, 5); note = st.text_area("เหตุผล")
                                 b1, b2 = st.columns(2)
                                 if b1.form_submit_button("🔴 หักแต้ม", use_container_width=True) and note:
                                     cell = sheet.find(str(v[2])); new_sc = max(0, sc - pts)
@@ -176,11 +181,25 @@ def traffic_module():
 
         if st.session_state.officer_role == "super_admin":
             st.divider()
-            with st.expander("⚙️ เมนูเลื่อนชั้นเรียน"):
+            with st.expander("⚙️ เมนูเลื่อนชั้นเรียน (Super Admin)"):
                 up_p = st.text_input("รหัสยืนยัน", type="password", key="prom_pwd_final")
-                if st.button("🚀 ตกลงเลื่อนชั้น") and up_p == UPGRADE_PASSWORD:
-                    # (ใส่ Logic เลื่อนชั้นเรียน ม.1->ม.2 อัตโนมัติที่นี่)
-                    st.success("เลื่อนชั้นเรียนสำเร็จ!"); st.session_state.df_tra = None; st.rerun()
+                if st.button("🚀 ตกลงเลื่อนชั้นทั้งโรงเรียน", type="primary"):
+                    if up_p == UPGRADE_PASSWORD:
+                        try:
+                            all_d = sheet.get_all_values(); h = all_d[0]; rows = all_d[1:]; new_rows = []
+                            for r in rows:
+                                if len(r) > 3:
+                                    ol = r[3]
+                                    if "ม.1" in ol: r[3] = ol.replace("ม.1", "ม.2")
+                                    elif "ม.2" in ol: r[3] = ol.replace("ม.2", "ม.3")
+                                    elif "ม.3" in ol: r[3] = "จบการศึกษา 🎓"
+                                    elif "ม.4" in ol: r[3] = ol.replace("ม.4", "ม.5")
+                                    elif "ม.5" in ol: r[3] = ol.replace("ม.5", "ม.6")
+                                    elif "ม.6" in ol: r[3] = "จบการศึกษา 🎓"
+                                new_rows.append(r)
+                            sheet.clear(); sheet.update(range_name='A1', values=[h] + new_rows)
+                            st.success("สำเร็จ!"); st.session_state.df_tra = None; st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
 
     elif st.session_state.traffic_page == 'edit':
         v = st.session_state.edit_data
@@ -188,7 +207,7 @@ def traffic_module():
         with st.form("edit_student"):
             nm = st.text_input("ชื่อ-นามสกุล", v[1]); cl = st.text_input("ชั้น", v[3]); pl = st.text_input("ทะเบียน", v[6])
             u1 = st.file_uploader("เปลี่ยนรูปเจ้าของ"); u2 = st.file_uploader("เปลี่ยนรูปหลังรถ"); u3 = st.file_uploader("เปลี่ยนรูปข้างรถ")
-            if st.form_submit_button("💾 บันทึกการแก้ไข", type="primary"):
+            if st.form_submit_button("💾 บันทึก", type="primary"):
                 cell = sheet.find(str(v[2])); l1, l2, l3 = v[14], v[10], v[11]
                 if u1: l1 = upload_to_drive(u1, f"{v[2]}_F_e.jpg")
                 if u2: l2 = upload_to_drive(u2, f"{v[2]}_B_e.jpg")
@@ -203,8 +222,8 @@ def traffic_module():
 # --- 7. Main UI (โลโก้หัวเว็บ) ---
 cl, ct = st.columns([1, 8])
 with cl: 
-    if logo_local_path: st.image(logo_local_path, width=90)
-with ct: st.title(f"ระบบจราจร {SHEET_NAME}")
+    if logo_local_path: st.image(logo_local_path, width=100)
+with ct: st.title(f"ระบบจราจรจันทรุเบกษาอนุสรณ์
 
 # --- หน้าลงทะเบียน ---
 if st.session_state['page'] == 'student':
@@ -224,7 +243,7 @@ if st.session_state['page'] == 'student':
         doc1, doc2, doc3 = st.columns(3)
         ls = doc1.radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True); ts = doc2.radio("ภาษี", ["✅ ปกติ", "❌ ขาด"], horizontal=True); hs = doc3.radio("หมวก", ["✅ มี", "❌ ไม่มี"], horizontal=True)
         up1, up2, up3 = st.columns(3)
-        p1 = up1.file_uploader("1. รูปหน้า", type=['jpg','png','jpeg']); p2 = up2.file_uploader("2. รูปหลัง", type=['jpg','png','jpeg']); p3 = up3.file_uploader("3. รูปข้าง", type=['jpg','png','jpeg'])
+        p1 = up1.file_uploader("1. รูปหน้า", type=['jpg','png','jpeg']); p2 = up2.file_uploader("2. รูปทะเบียน", type=['jpg','png','jpeg']); p3 = up3.file_uploader("3. รูปข้างรถ", type=['jpg','png','jpeg'])
         if st.form_submit_button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True):
             if fname and sid and p1 and p2 and p3:
                 try:
@@ -232,9 +251,9 @@ if st.session_state['page'] == 'student':
                     l1 = upload_to_drive(p1, f"{sid}_F.jpg"); l2 = upload_to_drive(p2, f"{sid}_B.jpg"); l3 = upload_to_drive(p3, f"{sid}_S.jpg")
                     if l1 and l2 and l3:
                         new_d = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"{pre}{fname}", str(sid), f"{lv}/{rm}", brand, color, plate, ls, ts, hs, l2, l3, "", "100", l1, str(pin)]
-                        sheet.append_row(new_d); st.success("สำเร็จ!"); st.balloons(); time.sleep(1); st.rerun()
+                        sheet.append_row(new_d); st.success("ลงทะเบียนสำเร็จ!"); st.balloons(); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
-            else: st.error("❌ ข้อมูลไม่ครบ")
+            else: st.error("❌ กรุณาใส่ข้อมูลและรูปภาพให้ครบ 3 มุม")
     st.divider()
     if st.button("🆔 ดูบัตรอนุญาต", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
@@ -252,13 +271,10 @@ elif st.session_state['page'] == 'portal':
     if 'portal_user' in st.session_state:
         v = st.session_state.portal_user; sc_p = int(v[13]) if str(v[13]).isdigit() else 100
         sc_col = "#16a34a" if sc_p >= 80 else ("#ca8a04" if sc_p >= 50 else "#dc2626")
-        
-        # 🚩 ใช้โลโก้ Base64 เพื่อให้ขึ้นในบัตรแน่นอน
-        logo_img_html = f'<img src="{logo_base64}" style="width:40px; vertical-align:middle; margin-right:10px;">' if logo_base64 else '🏫 '
-        
+        logo_img_tag = f'<img src="{logo_base64}" style="width:45px; vertical-align:middle; margin-right:10px;">' if logo_base64 else '🏫 '
         st.markdown(f"""
             <div class="atm-card">
-                <div class="atm-header"><div class="atm-school-name">{logo_img_html}{SHEET_NAME}</div></div>
+                <div class="atm-header"><div class="atm-school-name">{logo_img_tag}{SHEET_NAME}</div></div>
                 <div style="display: flex; gap: 20px; margin-top: 15px;">
                     <img src="{get_img_link(v[14])}" class="atm-photo">
                     <div style="flex: 1; color: #1e293b; line-height: 1.6;">
@@ -278,7 +294,7 @@ elif st.session_state['page'] == 'teacher':
     if not st.session_state.logged_in:
         with st.form("admin_login"):
             u_id, u_p = st.text_input("Username"), st.text_input("Password", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ", use_container_width=True, type="primary"):
+            if st.form_submit_button("Log In", use_container_width=True, type="primary"):
                 if u_id in OFFICER_ACCOUNTS and u_p == OFFICER_ACCOUNTS[u_id]["password"]:
                     st.session_state.logged_in = True; st.session_state.officer_name = OFFICER_ACCOUNTS[u_id]["name"]
                     st.session_state.officer_role = OFFICER_ACCOUNTS[u_id]["role"]; st.rerun()
