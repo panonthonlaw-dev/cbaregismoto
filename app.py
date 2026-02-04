@@ -317,14 +317,29 @@ elif st.session_state['page'] == 'portal':
             v = st.session_state.portal_user
             score = int(v[13]) if str(v[13]).isdigit() else 100
             score_col = "#16a34a" if score >= 80 else ("#ca8a04" if score >= 50 else "#dc2626")
+            
+            # --- บล็อกหน้าบัตรแบบปรับปรุงใหม่ (ขยับข้อมูลไปขวา + เพิ่มชื่อแต้ม) ---
             st.markdown(f"""
                 <div class="atm-card">
-                    <div class="atm-header"><div class="atm-school-name">{SHEET_NAME}</div></div>
-                    <div class="atm-body">
-                        <img src="{get_img_link(v[14])}" class="atm-photo">
-                        <div class="atm-info"><b>{v[1]}</b><br>ID: {v[2]}<br>ทะเบียน: <b>{v[6]}</b></div>
+                    <div class="atm-header">
+                        <div class="atm-school-name">🏫 {SHEET_NAME}</div>
                     </div>
-                    <div class="atm-score-box"><div class="atm-score-val" style="color:{score_col};">{score}</div></div>
+                    
+                    <div style="display: flex; align-items: flex-start; gap: 20px; margin-top: 15px;">
+                        <img src="{get_img_link(v[14])}" class="atm-photo">
+                        
+                        <div style="flex: 1; color: #1e293b; font-size: 1.1rem; line-height: 1.6;">
+                            <div style="font-size: 1.3rem; font-weight: bold; border-bottom: 2px solid #eee; margin-bottom: 5px; color: #1e3a8a;">{v[1]}</div>
+                            <div style="font-size: 0.95rem;">🆔 รหัส: <b>{v[2]}</b></div>
+                            <div style="font-size: 0.95rem;">🏍️ ทะเบียน: <b style="color: #1e40af;">{v[6]}</b></div>
+                            <div style="font-size: 0.95rem;">📚 ชั้น: {v[3]}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="position: absolute; bottom: 15px; right: 20px; text-align: right;">
+                        <div style="font-size: 0.85rem; color: #64748b; font-weight: bold; margin-bottom: -5px;">แต้มวินัยจราจร</div>
+                        <div class="atm-score-val" style="color:{score_col}; font-size: 2.8rem;">{score}</div>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
 
