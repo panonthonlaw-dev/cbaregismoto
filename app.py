@@ -268,13 +268,43 @@ if st.session_state['page'] == 'student':
         if st.form_submit_button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True):
             if fname and sid and p1 and p2 and p3:
                 try:
+                    # --- 🚩 เริ่มเพิ่มระบบแจ้งสถานะตรงนี้ ---
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
                     sheet = connect_gsheet()
-                    l1 = upload_to_drive(p1, f"{sid}_F.jpg"); l2 = upload_to_drive(p2, f"{sid}_B.jpg"); l3 = upload_to_drive(p3, f"{sid}_S.jpg")
+                    
+                    # อัปโหลดรูปที่ 1
+                    status_text.info("กำลังอัปโหลดรูปหน้าเจ้าของรถ (30%)...")
+                    l1 = upload_to_drive(p1, f"{sid}_F.jpg")
+                    progress_bar.progress(30)
+                    
+                    # อัปโหลดรูปที่ 2
+                    status_text.info("กำลังอัปโหลดรูปทะเบียนรถ (60%)...")
+                    l2 = upload_to_drive(p2, f"{sid}_B.jpg")
+                    progress_bar.progress(60)
+                    
+                    # อัปโหลดรูปที่ 3
+                    status_text.info("กำลังอัปโหลดรูปข้างรถ (90%)...")
+                    l3 = upload_to_drive(p3, f"{sid}_S.jpg")
+                    progress_bar.progress(90)
+                    
                     if l1 and l2 and l3:
+                        status_text.info("กำลังบันทึกข้อมูลลงฐานข้อมูล (100%)...")
                         new_d = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"{pre}{fname}", str(sid), f"{lv}/{rm}", brand, color, plate, ls, ts, hs, l2, l3, "", "100", l1, str(pin)]
-                        sheet.append_row(new_d); st.success("ลงทะเบียนสำเร็จ!"); st.balloons(); time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
-            else: st.error("❌ ข้อมูลไม่ครบ")
+                        sheet.append_row(new_d)
+                        
+                        progress_bar.progress(100)
+                        status_text.success("✅ ลงทะเบียนสำเร็จเรียบร้อย!")
+                        st.balloons()
+                        # --- 🚩 จบส่วนที่เพิ่ม ---
+                        
+                        time.sleep(1)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            else:
+                st.error("❌ กรุณาใส่ข้อมูลและรูปภาพให้ครบ 3 มุม")
     st.divider()
     if st.button("🆔 ดูบัตรอนุญาต", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
