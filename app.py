@@ -49,9 +49,8 @@ if 'current_user_pwd' not in st.session_state: st.session_state['current_user_pw
 if 'df_tra' not in st.session_state: st.session_state['df_tra'] = None
 if 'traffic_page' not in st.session_state: st.session_state['traffic_page'] = 'teacher'
 
-# 🚩 ฟังก์ชันย้ายหน้าพร้อมล้างข้อมูลชั่วคราว
 def go_to_page(page_name): 
-    if 'portal_user' in st.session_state: del st.session_state['portal_user'] # ล้างข้อมูลบัตรเมื่อเปลี่ยนหน้า
+    if 'portal_user' in st.session_state: del st.session_state['portal_user']
     st.session_state['page'] = page_name
     st.rerun()
 
@@ -79,7 +78,7 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-# --- 🎨 CSS ตกแต่ง ---
+# --- 🎨 CSS ตกแต่ง (ห้ามแก้ - ชุดเดิมของคุณครูเลยครับ) ---
 st.markdown("""
     <style>
         .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -89,7 +88,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ 5. ฟังก์ชันสร้าง PDF (ประวัติครบ + ชื่อครู)
+# ✅ 5. ฟังก์ชันสร้าง PDF (ประวัติครบ + ชื่อครู + กันถมดำ)
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
     if os.path.exists(FONT_FILE):
@@ -103,7 +102,7 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     c.line(50, height - 85, width - 50, height - 85)
     
     c.setFont(fn, 16); c.drawString(60, height - 110, f"ชื่อ-นามสกุล: {vals[1]}"); c.drawString(350, height - 110, f"ยี่ห้อรถ: {vals[4]}")
-    c.drawString(60, height - 130, f"รหัสนักเรียน: {vals[2]}"); c.drawString(350, height - 130, f"สีรถ: {vals[5]}")
+    c.drawString(60, height - 130, f"รหัสนักเรียน: {vals[2]} "); c.drawString(350, height - 130, f"สีรถ: {vals[5]}")
     c.drawString(60, height - 150, f"ระดับชั้น: {vals[3]}"); c.setFont(fb, 16); c.drawString(350, height - 150, f"ทะเบียน: {vals[6]}")
     
     score = str(vals[13]) if str(vals[13]).isdigit() else "100"
@@ -134,7 +133,7 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     c.drawRightString(width - 50, 30, f"ผู้สั่งพิมพ์: {printed_by} | วันที่พิมพ์: {print_time}")
     c.save(); buffer.seek(0); return buffer
 
-# ✅ 6. MODULE: TRAFFIC (ระบบเจ้าหน้าที่ + เพิ่ม/หักคะแนน)
+# ✅ 6. MODULE: TRAFFIC (ค้นหาพร้อมรูป 3 มุม + เพิ่ม/หักคะแนน)
 def traffic_module():
     sheet = connect_gsheet()
     if st.session_state.df_tra is None:
@@ -165,8 +164,8 @@ def traffic_module():
                 with st.expander(f"📌 {v[6]} | {v[1]} (แต้ม: {sc})"):
                     img1, img2, img3 = st.columns(3)
                     img1.image(get_img_link(v[14]), caption="👤 เจ้าของ", use_container_width=True)
-                    img2.image(get_img_link(v[10]), caption="📝 ป้ายทะเบียน", use_container_width=True)
-                    img3.image(get_img_link(v[11]), caption="🏍️ รูปข้างรถ", use_container_width=True)
+                    img2.image(get_img_link(v[10]), caption="📝 ทะเบียน", use_container_width=True)
+                    img3.image(get_img_link(v[11]), caption="🏍️ ข้างรถ", use_container_width=True)
                     
                     if st.session_state.officer_role in ["admin", "super_admin"]:
                         st.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[2]}.pdf", key=f"pdf_{i}")
@@ -211,8 +210,8 @@ def traffic_module():
                         st.success("สำเร็จ!"); st.session_state.df_tra = None; st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
-# --- 8. UI หน้าหลัก ---
-logo_path = "logo.png" if os.path.exists("logo.png") else None
+# --- 8. UI หน้าหลัก (คืนค่าโลโก้ที่หัวเว็บ) ---
+logo_path = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
 cl, ct = st.columns([1, 8])
 with cl: 
     if logo_path: st.image(logo_path, width=90)
@@ -232,7 +231,7 @@ if st.session_state['page'] == 'student':
         room = sc4.text_input("ห้อง (เช่น 0-13)")
         pin = st.text_input("ตั้ง PIN 6 หลัก", type="password", max_chars=6)
         sc5, sc6 = st.columns(2)
-        brand = sc5.selectbox("ยี่ห้อรถ", ["Honda", "Yamaha", "Suzuki", "GPX", "Kawasaki", "อื่นๆ"])
+        brand = st.selectbox("ยี่ห้อรถ", ["Honda", "Yamaha", "Suzuki", "GPX", "Kawasaki", "อื่นๆ"])
         color = sc6.text_input("สีรถ"); plate = st.text_input("ทะเบียนรถ")
         doc1, doc2, doc3 = st.columns(3)
         ls = doc1.radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True)
@@ -257,9 +256,9 @@ if st.session_state['page'] == 'student':
     if st.button("🆔 ดูบัตรอนุญาต", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
 
-# --- หน้าดูบัตร (ล้างข้อมูลเมื่อกดกลับ) ---
+# --- หน้าดูบัตร ---
 elif st.session_state['page'] == 'portal':
-    if st.button("🏠 กลับหน้าหลัก"): go_to_page('student') # 🚩 กดแล้วล้างข้อมูลบัตร
+    if st.button("🏠 กลับหน้าหลัก"): go_to_page('student')
     with st.form("portal_login"):
         sid_p, spin_p = st.text_input("รหัสประจำตัว"), st.text_input("PIN 6 หลัก", type="password")
         if st.form_submit_button("🔓 แสดงบัตร", use_container_width=True, type="primary"):
@@ -288,7 +287,7 @@ elif st.session_state['page'] == 'portal':
             </div>
         """, unsafe_allow_html=True)
 
-# --- หน้าเจ้าหน้าที่ (ล้างทุกอย่างเมื่อออกจากระบบ) ---
+# --- หน้าเจ้าหน้าที่ ---
 elif st.session_state['page'] == 'teacher':
     if not st.session_state.logged_in:
         with st.form("admin_login"):
@@ -303,6 +302,6 @@ elif st.session_state['page'] == 'teacher':
         c1, c2 = st.columns([8, 2])
         c1.subheader(f"👋 สวัสดี: {st.session_state.officer_name}")
         if c2.button("🚪 ออกจากระบบ", type="secondary"): 
-            st.session_state.clear() # 🚩 ล้างแคชและข้อมูลล็อกอินทั้งหมด
+            st.session_state.clear() 
             st.rerun()
         st.divider(); traffic_module()
