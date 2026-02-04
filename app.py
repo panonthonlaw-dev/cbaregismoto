@@ -35,7 +35,7 @@ UPGRADE_PASSWORD = st.secrets["UPGRADE_PASSWORD"]
 OFFICER_ACCOUNTS = st.secrets["OFFICER_ACCOUNTS"]
 
 # --- 3. Setup หน้าเว็บ ---
-st.set_page_config(page_title=f"ระบบจราจรจันทรุเบกษาอนุสรณ์", page_icon="🏍️", layout="wide")
+st.set_page_config(page_title=f"ระบบจราจรโรงเรียนจันทรุเบกษาอนุสรณ์", page_icon="🏍️", layout="wide")
 
 # --- 4. จัดการ Session State ---
 if 'page' not in st.session_state: st.session_state['page'] = 'student'
@@ -223,7 +223,7 @@ def traffic_module():
 cl, ct = st.columns([1, 8])
 with cl: 
     if logo_local_path: st.image(logo_local_path, width=100)
-with ct: st.title(f"ระบบจราจรจันทรุเบกษาอนุสรณ์")
+with ct: st.title(f"ระบบจราจรโรงเรียนจันทรุเบกษาอนุสรณ์")
 
 # --- หน้าลงทะเบียน ---
 if st.session_state['page'] == 'student':
@@ -236,7 +236,7 @@ if st.session_state['page'] == 'student':
         sid = sc2.text_input("รหัสประจำตัว")
         sc3, sc4 = st.columns(2)
         lv = sc3.selectbox("ชั้น", ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ครู,บุคลากร", "พ่อค้าแม่ค้า"])
-        rm = sc4.text_input("ห้อง (เช่น 0-13)"); pin = st.text_input("ตั้ง PIN 6 หลัก", type="password", max_chars=6)
+        rm = sc4.text_input("ห้อง (เช่น 0-13)"); pin = st.text_input("ตั้ง PIN 6 หลัก(ตัวเลขเท่านั้น)", type="password", max_chars=6)
         sc5, sc6 = st.columns(2)
         brand = st.selectbox("ยี่ห้อรถ", ["Honda", "Yamaha", "Suzuki", "GPX", "Kawasaki", "อื่นๆ"])
         color = st.text_input("สีรถ"); plate = st.text_input("ทะเบียนรถ")
@@ -262,7 +262,7 @@ if st.session_state['page'] == 'student':
 elif st.session_state['page'] == 'portal':
     if st.button("🏠 กลับหน้าหลัก"): go_to_page('student')
     with st.form("portal_login"):
-        sid_p, spin_p = st.text_input("รหัส"), st.text_input("PIN", type="password")
+        sid_p, spin_p = st.text_input("รหัสตัวเลข6หลัก"), st.text_input("PIN", type="password")
         if st.form_submit_button("🔓 แสดงบัตร", use_container_width=True, type="primary"):
             sheet = connect_gsheet(); df = pd.DataFrame(sheet.get_all_values())
             user = df[(df.iloc[:, 2] == sid_p) & (df.iloc[:, 15] == spin_p)]
