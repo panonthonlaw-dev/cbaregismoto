@@ -64,6 +64,8 @@ if 'officer_role' not in st.session_state: st.session_state['officer_role'] = ""
 if 'current_user_pwd' not in st.session_state: st.session_state['current_user_pwd'] = ""
 if 'search_results_df' not in st.session_state: st.session_state['search_results_df'] = None
 if 'edit_data' not in st.session_state: st.session_state['edit_data'] = None
+if 'df_tra' not in st.session_state: st.session_state['df_tra'] = None
+if 'traffic_page' not in st.session_state: st.session_state['traffic_page'] = 'teacher'
 
 def go_to_page(page_name): 
     st.session_state['page'] = page_name
