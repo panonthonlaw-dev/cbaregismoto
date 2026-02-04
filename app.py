@@ -39,7 +39,7 @@ OFFICER_ACCOUNTS = st.secrets["OFFICER_ACCOUNTS"]
 # --- 3. Setup หน้าเว็บ ---
 st.set_page_config(page_title=f"ระบบจราจร {SHEET_NAME}", page_icon="🏍️", layout="wide")
 
-# --- 4. จัดการ Session State ---
+# --- 4. จัดการ Session State (ระบบล้างข้อมูลอัตโนมัติ) ---
 if 'page' not in st.session_state: st.session_state['page'] = 'student'
 if 'is_loading' not in st.session_state: st.session_state['is_loading'] = False
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
@@ -49,7 +49,9 @@ if 'current_user_pwd' not in st.session_state: st.session_state['current_user_pw
 if 'df_tra' not in st.session_state: st.session_state['df_tra'] = None
 if 'traffic_page' not in st.session_state: st.session_state['traffic_page'] = 'teacher'
 
+# 🚩 ฟังก์ชันย้ายหน้าพร้อมล้างข้อมูลชั่วคราว
 def go_to_page(page_name): 
+    if 'portal_user' in st.session_state: del st.session_state['portal_user'] # ล้างข้อมูลบัตรเมื่อเปลี่ยนหน้า
     st.session_state['page'] = page_name
     st.rerun()
 
@@ -87,7 +89,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ 5. ฟังก์ชันสร้าง PDF (ประวัติครบ + กันถมดำ)
+# ✅ 5. ฟังก์ชันสร้าง PDF (ประวัติครบ + ชื่อครู)
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
     if os.path.exists(FONT_FILE):
@@ -116,25 +118,23 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
         except: c.rect(x, y, w, h, stroke=1, fill=0)
 
     if face_url: draw_img(face_url, 460, height - 180, 80, 95)
-    draw_img(img_url1, 60, height - 380, 230, 180)
-    draw_img(img_url2, 305, height - 380, 230, 180)
+    draw_img(img_url1, 60, height - 380, 230, 180); draw_img(img_url2, 305, height - 380, 230, 180)
 
     c.setFont(fb, 16); c.drawString(60, height - 410, "📝 ประวัติบันทึกความประพฤติจราจร:")
-    c.setFont(fn, 14)
-    raw_history = str(vals[12]).strip()
-    history_text = raw_history if raw_history and raw_history.lower() != "nan" else "ไม่พบประวัติการทำผิดวินัย"
+    c.setFont(fn, 14); raw_history = str(vals[12]).strip()
+    history_text = raw_history if raw_history and raw_history.lower() != "nan" else "ไม่พบประวัติ"
     
     text_obj = c.beginText(70, height - 430); text_obj.setLeading(18)
     for line in history_text.split('\n'):
         for w_line in textwrap.wrap(line, width=80): text_obj.textLine(w_line)
     c.drawText(text_obj)
 
-    c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5)
     print_time = datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')
+    c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5)
     c.drawRightString(width - 50, 30, f"ผู้สั่งพิมพ์: {printed_by} | วันที่พิมพ์: {print_time}")
     c.save(); buffer.seek(0); return buffer
 
-# ✅ 6. MODULE: TRAFFIC (รวมระบบเพิ่ม/หักคะแนน)
+# ✅ 6. MODULE: TRAFFIC (ระบบเจ้าหน้าที่ + เพิ่ม/หักคะแนน)
 def traffic_module():
     sheet = connect_gsheet()
     if st.session_state.df_tra is None:
@@ -154,52 +154,45 @@ def traffic_module():
     st.write("")
     c_in, c_bt = st.columns([4, 1])
     q = c_in.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search_main")
-    btn_search = c_bt.button("⚡ ค้นหาข้อมูล", use_container_width=True, type="primary")
-
-    if q or btn_search:
+    if c_bt.button("⚡ ค้นหาข้อมูล", use_container_width=True, type="primary") or q:
         df = st.session_state.df_tra
         mask = (df['C1'].str.contains(q, case=False) | df['C2'].str.contains(q) | df['C6'].str.contains(q, case=False))
         res = df[mask]
-        if res.empty: st.warning("ไม่พบข้อมูลนักเรียน")
+        if res.empty: st.warning("ไม่พบข้อมูล")
         else:
             for i, row in res.iterrows():
                 v = row.tolist(); sc = int(v[13]) if str(v[13]).isdigit() else 100
                 with st.expander(f"📌 {v[6]} | {v[1]} (แต้ม: {sc})"):
-                    i1, i2, i3 = st.columns(3)
-                    i1.image(get_img_link(v[14]), caption="👤 เจ้าของ", use_container_width=True)
-                    i2.image(get_img_link(v[10]), caption="📝 ทะเบียน", use_container_width=True)
-                    i3.image(get_img_link(v[11]), caption="🏍️ ข้างรถ", use_container_width=True)
+                    img1, img2, img3 = st.columns(3)
+                    img1.image(get_img_link(v[14]), caption="👤 เจ้าของ", use_container_width=True)
+                    img2.image(get_img_link(v[10]), caption="📝 ป้ายทะเบียน", use_container_width=True)
+                    img3.image(get_img_link(v[11]), caption="🏍️ รูปข้างรถ", use_container_width=True)
                     
-                    st.divider()
                     if st.session_state.officer_role in ["admin", "super_admin"]:
-                        st.download_button("📥 โหลด PDF ประวัติ", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[2]}.pdf", key=f"pdf_dl_{i}")
-                        
-                        # --- 🚩 จุดสำคัญ: ระบบเพิ่ม/หักคะแนน ---
+                        st.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[2]}.pdf", key=f"pdf_{i}")
                         with st.form(key=f"score_form_{i}"):
-                            pts = st.number_input("ระบุแต้ม", 1, 50, 5)
-                            note = st.text_area("ระบุเหตุผล/หมายเหตุ")
-                            c_sub1, c_sub2 = st.columns(2)
-                            btn_deduct = c_sub1.form_submit_button("🔴 หักแต้ม", use_container_width=True)
-                            btn_add = c_sub2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True)
-                            
-                            if (btn_deduct or btn_add) and note:
+                            pts = st.number_input("ระบุแต้ม", 1, 50, 5); note = st.text_area("หมายเหตุ")
+                            b1, b2 = st.columns(2)
+                            if b1.form_submit_button("🔴 หักแต้ม", use_container_width=True) and note:
                                 cell = sheet.find(str(v[2]))
-                                action = "หัก" if btn_deduct else "เพิ่ม"
-                                new_sc = max(0, sc - pts) if btn_deduct else min(100, sc + pts)
-                                
+                                new_sc = max(0, sc - pts)
                                 old_log = str(v[12]) if str(v[12]).lower() != "nan" else ""
-                                time_now = datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')
-                                new_log = f"{old_log}\n[{time_now}] {action} {pts} แต้ม: {note} (โดย: {st.session_state.officer_name})"
-                                
+                                new_log = f"{old_log}\n[{datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')}] หัก {pts} โดย {st.session_state.officer_name}: {note}"
                                 sheet.update(range_name=f'M{cell.row}:N{cell.row}', values=[[new_log, str(new_sc)]])
-                                st.success(f"{action}แต้มเรียบร้อย!"); time.sleep(1); st.session_state.df_tra = None; st.rerun()
-                            elif (btn_deduct or btn_add): st.error("กรุณาระบุเหตุผล")
+                                st.success("หักแต้มสำเร็จ!"); st.session_state.df_tra = None; st.rerun()
+                            if b2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True) and note:
+                                cell = sheet.find(str(v[2]))
+                                new_sc = min(100, sc + pts)
+                                old_log = str(v[12]) if str(v[12]).lower() != "nan" else ""
+                                new_log = f"{old_log}\n[{datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')}] เพิ่ม {pts} โดย {st.session_state.officer_name}: {note}"
+                                sheet.update(range_name=f'M{cell.row}:N{cell.row}', values=[[new_log, str(new_sc)]])
+                                st.success("เพิ่มแต้มสำเร็จ!"); st.session_state.df_tra = None; st.rerun()
 
     # ✅ 7. ระบบเลื่อนชั้นเรียน
     if st.session_state.officer_role == "super_admin":
-        st.write("---")
+        st.divider()
         with st.expander("⚙️ เมนูเลื่อนชั้นเรียน (Super Admin Only)"):
-            up_pwd = st.text_input("รหัสยืนยันเลื่อนชั้น", type="password", key="prom_pwd_f")
+            up_pwd = st.text_input("รหัสยืนยันเลื่อนชั้น", type="password", key="prom_pwd")
             if st.button("🚀 ตกลงเลื่อนชั้นทั้งโรงเรียน", type="primary"):
                 if up_pwd == UPGRADE_PASSWORD:
                     try:
@@ -215,7 +208,7 @@ def traffic_module():
                                 elif "ม.6" in ol: r[3] = "จบการศึกษา 🎓"
                             new_rows.append(r)
                         sheet.clear(); sheet.update(range_name='A1', values=[header] + new_rows)
-                        st.success("เลื่อนชั้นสำเร็จ!"); time.sleep(1); st.session_state.df_tra = None; st.rerun()
+                        st.success("สำเร็จ!"); st.session_state.df_tra = None; st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
 # --- 8. UI หน้าหลัก ---
@@ -225,7 +218,7 @@ with cl:
     if logo_path: st.image(logo_path, width=90)
 with ct: st.title(f"ระบบจราจร {SHEET_NAME}")
 
-# --- หน้าลงทะเบียน (Student) ---
+# --- หน้าลงทะเบียน ---
 if st.session_state['page'] == 'student':
     st.info("📝 ลงทะเบียนรถและทำบัตรอนุญาตดิจิทัล")
     with st.form("reg_form"):
@@ -233,7 +226,7 @@ if st.session_state['page'] == 'student':
         with sc1:
             prefix = st.selectbox("คำนำหน้า", ["นาย", "นางสาว", "เด็กชาย", "เด็กหญิง", "นาง", "ครู"])
             fname = st.text_input("ชื่อ-นามสกุล")
-        sid = sc2.text_input("รหัสประจำตัว")
+        std_id = sc2.text_input("รหัสประจำตัว")
         sc3, sc4 = st.columns(2)
         level = sc3.selectbox("ชั้น", ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ครู,บุคลากร", "พ่อค้าแม่ค้า"])
         room = sc4.text_input("ห้อง (เช่น 0-13)")
@@ -241,33 +234,32 @@ if st.session_state['page'] == 'student':
         sc5, sc6 = st.columns(2)
         brand = sc5.selectbox("ยี่ห้อรถ", ["Honda", "Yamaha", "Suzuki", "GPX", "Kawasaki", "อื่นๆ"])
         color = sc6.text_input("สีรถ"); plate = st.text_input("ทะเบียนรถ")
-        doc_cols = st.columns(3)
-        ls = doc_cols[0].radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True)
-        ts = doc_cols[1].radio("ภาษี", ["✅ ปกติ", "❌ ขาด"], horizontal=True)
-        hs = doc_cols[2].radio("หมวก", ["✅ มี", "❌ ไม่มี"], horizontal=True)
-        st.write("📸 อัปโหลดภาพ 3 รูป")
+        doc1, doc2, doc3 = st.columns(3)
+        ls = doc1.radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True)
+        ts = doc2.radio("ภาษี", ["✅ ปกติ", "❌ ขาด"], horizontal=True)
+        hs = doc3.radio("หมวก", ["✅ มี", "❌ ไม่มี"], horizontal=True)
         up1, up2, up3 = st.columns(3)
-        p1 = up1.file_uploader("1. รูปหน้าเจ้าของ", type=['jpg','png','jpeg'])
+        p1 = up1.file_uploader("1. รูปเจ้าของ", type=['jpg','png','jpeg'])
         p2 = up2.file_uploader("2. รูปหลังรถ", type=['jpg','png','jpeg'])
         p3 = up3.file_uploader("3. รูปข้างรถ", type=['jpg','png','jpeg'])
         pdpa = st.checkbox("ยินยอม PDPA")
         if st.form_submit_button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True):
-            if fname and sid and p1 and p2 and p3:
+            if fname and std_id and p1 and p2 and p3:
                 try:
                     sheet = connect_gsheet()
-                    l1 = upload_to_drive(p1, f"{sid}_F.jpg"); l2 = upload_to_drive(p2, f"{sid}_B.jpg"); l3 = upload_to_drive(p3, f"{sid}_S.jpg")
+                    l1 = upload_to_drive(p1, f"{std_id}_F.jpg"); l2 = upload_to_drive(p2, f"{std_id}_B.jpg"); l3 = upload_to_drive(p3, f"{std_id}_S.jpg")
                     if l1 and l2 and l3:
-                        new_d = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"{prefix}{fname}", str(sid), f"{level}/{room}", brand, color, plate, ls, ts, hs, l2, l3, "", "100", l1, str(pin)]
-                        sheet.append_row(new_d); st.success("✅ สำเร็จ!"); st.balloons(); time.sleep(1); st.rerun()
+                        new_d = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"{prefix}{fname}", str(std_id), f"{level}/{room}", brand, color, plate, ls, ts, hs, l2, l3, "", "100", l1, str(pin)]
+                        sheet.append_row(new_d); st.success("สำเร็จ!"); st.balloons(); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
             else: st.error("❌ กรุณาใส่ข้อมูลและรูปภาพให้ครบ 3 รูป")
     st.divider()
-    if st.button("🆔 ดูบัตรอนุญาต (Student Portal)", use_container_width=True): go_to_page('portal')
+    if st.button("🆔 ดูบัตรอนุญาต", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
 
-# --- หน้าดูบัตร (Portal) ---
+# --- หน้าดูบัตร (ล้างข้อมูลเมื่อกดกลับ) ---
 elif st.session_state['page'] == 'portal':
-    if st.button("🏠 กลับหน้าหลัก"): go_to_page('student')
+    if st.button("🏠 กลับหน้าหลัก"): go_to_page('student') # 🚩 กดแล้วล้างข้อมูลบัตร
     with st.form("portal_login"):
         sid_p, spin_p = st.text_input("รหัสประจำตัว"), st.text_input("PIN 6 หลัก", type="password")
         if st.form_submit_button("🔓 แสดงบัตร", use_container_width=True, type="primary"):
@@ -296,12 +288,12 @@ elif st.session_state['page'] == 'portal':
             </div>
         """, unsafe_allow_html=True)
 
-# --- หน้าเจ้าหน้าที่ ---
+# --- หน้าเจ้าหน้าที่ (ล้างทุกอย่างเมื่อออกจากระบบ) ---
 elif st.session_state['page'] == 'teacher':
     if not st.session_state.logged_in:
         with st.form("admin_login"):
             u_id, u_p = st.text_input("Username"), st.text_input("Password", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ", use_container_width=True, type="primary"):
+            if st.form_submit_button("Log In", use_container_width=True, type="primary"):
                 if u_id in OFFICER_ACCOUNTS and u_p == OFFICER_ACCOUNTS[u_id]["password"]:
                     st.session_state.logged_in = True; st.session_state.officer_name = OFFICER_ACCOUNTS[u_id]["name"]
                     st.session_state.officer_role = OFFICER_ACCOUNTS[u_id]["role"]; st.session_state.current_user_pwd = u_p; st.rerun()
@@ -310,5 +302,7 @@ elif st.session_state['page'] == 'teacher':
     else:
         c1, c2 = st.columns([8, 2])
         c1.subheader(f"👋 สวัสดี: {st.session_state.officer_name}")
-        if c2.button("🚪 ออกจากระบบ", type="secondary"): st.session_state.logged_in = False; st.rerun()
+        if c2.button("🚪 ออกจากระบบ", type="secondary"): 
+            st.session_state.clear() # 🚩 ล้างแคชและข้อมูลล็อกอินทั้งหมด
+            st.rerun()
         st.divider(); traffic_module()
