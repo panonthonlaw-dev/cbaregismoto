@@ -39,7 +39,7 @@ OFFICER_ACCOUNTS = st.secrets["OFFICER_ACCOUNTS"]
 # --- 3. Setup หน้าเว็บ ---
 st.set_page_config(page_title=f"ระบบจราจร {SHEET_NAME}", page_icon="🏍️", layout="wide")
 
-# --- 4. จัดการ Session State (ระบบล้างข้อมูลอัตโนมัติ) ---
+# --- 4. จัดการ Session State ---
 if 'page' not in st.session_state: st.session_state['page'] = 'student'
 if 'is_loading' not in st.session_state: st.session_state['is_loading'] = False
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
@@ -54,10 +54,20 @@ def go_to_page(page_name):
     st.session_state['page'] = page_name
     st.rerun()
 
+# 🛠️ ฟังก์ชันเชื่อมต่อ Sheets (แก้ไขใหม่ให้ทนทานต่อ JSON Error)
 def connect_gsheet():
     try:
-        key_content = st.secrets["textkey"]["json_content"].strip()
-        key_dict = json.loads(key_content.replace('\n', '\\n'), strict=False)
+        content = st.secrets["textkey"]["json_content"].strip()
+        # ล้างพวกเครื่องหมายคำพูดส่วนเกินที่อาจติดมาจากการก๊อปปี้
+        if content.startswith("'") and content.endswith("'"): content = content[1:-1]
+        if content.startswith('"') and content.endswith('"'): content = content[1:-1]
+        
+        # แก้ปัญหา \n ที่ทำให้ JSON พัง
+        try:
+            key_dict = json.loads(content, strict=False)
+        except:
+            key_dict = json.loads(content.replace('\n', '\\n'), strict=False)
+            
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
         return gspread.authorize(creds).open(SHEET_NAME).sheet1
@@ -78,7 +88,7 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-# --- 🎨 CSS ตกแต่ง (ห้ามแก้ - ชุดเดิมของคุณครูเลยครับ) ---
+# --- 🎨 CSS ตกแต่ง (ชุดเดิมเป๊ะๆ) ---
 st.markdown("""
     <style>
         .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -88,7 +98,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ 5. ฟังก์ชันสร้าง PDF (ประวัติครบ + ชื่อครู + กันถมดำ)
+# ✅ ฟังก์ชันสร้าง PDF (ประวัติครบ + ชื่อครู + กันถมดำ)
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
     if os.path.exists(FONT_FILE):
@@ -133,7 +143,7 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     c.drawRightString(width - 50, 30, f"ผู้สั่งพิมพ์: {printed_by} | วันที่พิมพ์: {print_time}")
     c.save(); buffer.seek(0); return buffer
 
-# ✅ 6. MODULE: TRAFFIC (ค้นหาพร้อมรูป 3 มุม + เพิ่ม/หักคะแนน)
+# ✅ 6. MODULE: TRAFFIC (ค้นหาพร้อมรูป 3 มุม + เพิ่ม/หักคะแนน + เลื่อนชั้น)
 def traffic_module():
     sheet = connect_gsheet()
     if st.session_state.df_tra is None:
@@ -147,7 +157,7 @@ def traffic_module():
         has_lic = len(df[df['C7'] == "✅ มี"]); has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
         m1, m2, m3 = st.columns(3)
         m1.metric("ลงทะเบียนแล้ว", f"{total} คัน")
-        m2.metric("มีใบขับขี่", f"{has_lic} คน", f"{round(has_lic/total*100 if total>0 else 0)}%")
+        m2.metric("ใบขับขี่", f"{has_lic} คน", f"{round(has_lic/total*100 if total>0 else 0)}%")
         m3.metric("ภาษีปกติ", f"{has_tax} คัน", f"{round(has_tax/total*100 if total>0 else 0)}%")
 
     st.write("")
@@ -173,26 +183,23 @@ def traffic_module():
                             pts = st.number_input("ระบุแต้ม", 1, 50, 5); note = st.text_area("หมายเหตุ")
                             b1, b2 = st.columns(2)
                             if b1.form_submit_button("🔴 หักแต้ม", use_container_width=True) and note:
-                                cell = sheet.find(str(v[2]))
-                                new_sc = max(0, sc - pts)
+                                cell = sheet.find(str(v[2])); new_sc = max(0, sc - pts)
                                 old_log = str(v[12]) if str(v[12]).lower() != "nan" else ""
                                 new_log = f"{old_log}\n[{datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')}] หัก {pts} โดย {st.session_state.officer_name}: {note}"
                                 sheet.update(range_name=f'M{cell.row}:N{cell.row}', values=[[new_log, str(new_sc)]])
                                 st.success("หักแต้มสำเร็จ!"); st.session_state.df_tra = None; st.rerun()
                             if b2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True) and note:
-                                cell = sheet.find(str(v[2]))
-                                new_sc = min(100, sc + pts)
+                                cell = sheet.find(str(v[2])); new_sc = min(100, sc + pts)
                                 old_log = str(v[12]) if str(v[12]).lower() != "nan" else ""
                                 new_log = f"{old_log}\n[{datetime.now(thai_tz).strftime('%d/%m/%Y %H:%M')}] เพิ่ม {pts} โดย {st.session_state.officer_name}: {note}"
                                 sheet.update(range_name=f'M{cell.row}:N{cell.row}', values=[[new_log, str(new_sc)]])
                                 st.success("เพิ่มแต้มสำเร็จ!"); st.session_state.df_tra = None; st.rerun()
 
-    # ✅ 7. ระบบเลื่อนชั้นเรียน
     if st.session_state.officer_role == "super_admin":
         st.divider()
         with st.expander("⚙️ เมนูเลื่อนชั้นเรียน (Super Admin Only)"):
             up_pwd = st.text_input("รหัสยืนยันเลื่อนชั้น", type="password", key="prom_pwd")
-            if st.button("🚀 ตกลงเลื่อนชั้นทั้งโรงเรียน", type="primary"):
+            if st.button("🚀 ตกลงเลื่อนชั้นเรียนทั้งหมด", type="primary"):
                 if up_pwd == UPGRADE_PASSWORD:
                     try:
                         all_d = sheet.get_all_values(); header = all_d[0]; rows = all_d[1:]; new_rows = []
@@ -210,8 +217,8 @@ def traffic_module():
                         st.success("สำเร็จ!"); st.session_state.df_tra = None; st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
-# --- 8. UI หน้าหลัก (คืนค่าโลโก้ที่หัวเว็บ) ---
-logo_path = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
+# --- 7. Main UI (คืนค่าโลโก้ที่หัวเว็บ) ---
+logo_path = next((f for f in ["logo.png", "logo.jpg", "logo.jpeg"] if os.path.exists(f)), None)
 cl, ct = st.columns([1, 8])
 with cl: 
     if logo_path: st.image(logo_path, width=90)
