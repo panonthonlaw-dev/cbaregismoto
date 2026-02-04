@@ -84,15 +84,22 @@ def get_base64_logo():
 logo_base64, logo_local_path = get_base64_logo()
 
 # --- 🎨 CSS ตกแต่ง (ห้ามแก้ - ชุดเดิมเป๊ะ) ---
+# เพิ่มบรรทัดเหล่านี้เข้าไปในส่วน <style> เดิมครับ
 st.markdown("""
     <style>
-        .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .atm-school-name { font-size: 16px; font-weight: bold; color: #1e293b; }
-        .atm-photo { width: 100px; height: 125px; border-radius: 8px; object-fit: cover; border: 1px solid #cbd5e1; }
-        .atm-score-val { font-size: 32px; font-weight: 800; color: #16a34a; }
+        /* ซ่อน Header ทั้งหมด (ปุ่ม Deploy, ไอคอน GitHub, เมนู) */
+        header {visibility: hidden;}
+        .stAppHeader {display: none;}
+        
+        /* ซ่อน Footer (Made with Streamlit) */
+        footer {visibility: hidden;}
+        
+        /* ขยับเนื้อหาขึ้นไปให้สุด */
+        .block-container {
+            padding-top: 2rem;
+        }
     </style>
 """, unsafe_allow_html=True)
-
 # ✅ 5. ฟังก์ชันสร้าง PDF
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
