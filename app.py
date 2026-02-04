@@ -232,24 +232,100 @@ elif st.session_state['page'] == 'portal':
                 </div>
             """, unsafe_allow_html=True)
 
-# --- หน้าเจ้าหน้าที่ (Teacher) ---
+# --- หน้าเจ้าหน้าที่ (Teacher/Officer System) ---
 elif st.session_state['page'] == 'teacher':
+    # 1. ตรวจสอบว่า Login หรือยัง
     if not st.session_state.logged_in:
-        with st.form("login"):
-            st.subheader("🔐 เจ้าหน้าที่เข้าสู่ระบบ")
-            u_pwd = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ"):
-                if u_pwd in OFFICER_ACCOUNTS:
-                    user_info = OFFICER_ACCOUNTS[u_pwd]
-                    st.session_state.logged_in = True
-                    st.session_state.officer_name = user_info["name"]
-                    st.session_state.officer_role = user_info["role"]
-                    st.session_state.current_user_pwd = u_pwd
-                    st.rerun()
-                else: st.error("รหัสผ่านไม่ถูกต้อง")
+        _, center_col, _ = st.columns([1, 2, 1])
+        with center_col:
+            st.markdown("### 🔐 เจ้าหน้าที่เข้าสู่ระบบ")
+            with st.form("admin_login"):
+                user_id = st.text_input("Username (รหัสเจ้าหน้าที่)")
+                user_pass = st.text_input("Password", type="password")
+                login_submit = st.form_submit_button("Log In", use_container_width=True, type="primary")
+
+                if login_submit:
+                    # ตรวจสอบข้อมูลใน Secrets
+                    if user_id in OFFICER_ACCOUNTS and user_pass == OFFICER_ACCOUNTS[user_id]["password"]:
+                        st.session_state.logged_in = True
+                        st.session_state.officer_name = OFFICER_ACCOUNTS[user_id]["name"]
+                        st.session_state.officer_role = OFFICER_ACCOUNTS[user_id]["role"]
+                        st.success("✅ ยินดีต้อนรับครับ")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+            
+            if st.button("⬅️ กลับหน้าหลัก"): go_to_page('student')
+
+    # 2. เมื่อ Login สำเร็จแล้ว (หน้า Dashboard เจ้าหน้าที่)
     else:
-        st.success(f"👤 ผู้ใช้งาน: {st.session_state.officer_name} ({st.session_state.officer_role})")
-        if st.button("🏠 กลับหน้าหลัก"): go_to_page('student')
-        if st.button("🚪 ออกจากระบบ"): 
+        # ส่วนหัวหน้าจอ
+        c1, c2 = st.columns([8, 2])
+        c1.subheader(f"👋 สวัสดี: {st.session_state.officer_name}")
+        if c2.button("🚪 ออกจากระบบ", type="secondary"):
             st.session_state.logged_in = False
-            go_to_page('student')
+            st.session_state.officer_name = ""
+            st.rerun()
+
+        st.divider()
+
+        # --- ส่วนจัดการคะแนน (Search & Action) ---
+        st.write("🔍 **ค้นหาและจัดการคะแนนนักเรียน**")
+        search_id = st.text_input("กรอกรหัสนักเรียน เพื่อตัดคะแนน/เพิ่มคะแนน", placeholder="เช่น 12345")
+        
+        if search_id:
+            sheet = connect_gsheet()
+            if sheet:
+                all_data = sheet.get_all_records()
+                df = pd.DataFrame(all_data)
+                # ค้นหาข้อมูลนักเรียน
+                student = df[df['รหัสประจำตัว'].astype(str) == search_id]
+                
+                if not student.empty:
+                    s = student.iloc[0]
+                    # แสดงข้อมูลย่อๆ
+                    with st.expander(f"📌 พบข้อมูล: {s['ชื่อ-นามสกุล']}", expanded=True):
+                        col_img, col_info = st.columns([1, 2])
+                        col_img.image(get_img_link(s['รูปถ่ายเจ้าของรถ']), width=150)
+                        
+                        current_score = int(s['คะแนน'])
+                        col_info.write(f"**ชั้น:** {s['ระดับชั้น/ห้อง']}")
+                        col_info.write(f"**ทะเบียน:** {s['ทะเบียนรถ']}")
+                        col_info.metric("คะแนนปัจจุบัน", f"{current_score} แต้ม")
+
+                        # ปุ่มจัดการคะแนน
+                        st.write("⚡ **จัดการแต้มวินัย**")
+                        act_col1, act_col2, act_col3 = st.columns(3)
+                        
+                        # ตัวอย่างปุ่มตัดคะแนน
+                        if act_col1.button("⚠️ ตัด 10 แต้ม (ไม่สวมหมวก)", use_container_width=True):
+                            new_score = current_score - 10
+                            # หาแถวที่ต้องอัปเดต (index + 2 เพราะ GSheet เริ่มที่ 1 และมี Header)
+                            row_to_update = df[df['รหัสประจำตัว'].astype(str) == search_id].index[0] + 2
+                            sheet.update_cell(row_to_update, 14, new_score) # คอลัมน์ที่ 14 คือคะแนน
+                            st.warning(f"บันทึกการตัดคะแนน {s['ชื่อ-นามสกุล']} เรียบร้อย!")
+                            time.sleep(1); st.rerun()
+
+                        if act_col2.button("🚫 ตัด 20 แต้ม (ไม่มีใบขับขี่)", use_container_width=True):
+                            new_score = current_score - 20
+                            row_to_update = df[df['รหัสประจำตัว'].astype(str) == search_id].index[0] + 2
+                            sheet.update_cell(row_to_update, 14, new_score)
+                            st.error(f"ตัดคะแนนร้ายแรงเรียบร้อย!")
+                            time.sleep(1); st.rerun()
+
+                        if act_col3.button("✨ เพิ่ม 5 แต้ม (ทำดี)", use_container_width=True):
+                            new_score = current_score + 5
+                            row_to_update = df[df['รหัสประจำตัว'].astype(str) == search_id].index[0] + 2
+                            sheet.update_cell(row_to_update, 14, new_score)
+                            st.success(f"เพิ่มคะแนนความประพฤติเรียบร้อย!")
+                            time.sleep(1); st.rerun()
+                else:
+                    st.error("❌ ไม่พบรหัสนักเรียนนี้ในระบบ")
+
+        # เมนูเสริมสำหรับ Super Admin
+        if st.session_state.officer_role == "super_admin":
+            with st.expander("📊 ดูรายงานภาพรวม (Super Admin Only)"):
+                st.write("ตรงนี้สามารถใส่กราฟสรุป หรือลิงก์ไปหน้า Google Sheets ได้ครับ")
+                if st.button("ดาวน์โหลดข้อมูลทั้งหมดเป็น CSV"):
+                    st.write("กำลังประมวลผล...")
