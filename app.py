@@ -24,7 +24,7 @@ from reportlab.lib.utils import ImageReader
 # ✅ 1. ตั้งค่าพื้นฐานและฟอนต์
 thai_tz = pytz.timezone('Asia/Bangkok')
 FONT_FILE = "THSarabunNew.ttf" 
-FONT_BOLD = "THSarabunNew.ttf" # หากมีไฟล์ตัวหนาแยกให้ใส่ชื่อไฟล์นั้น
+FONT_BOLD = "THSarabunNew.ttf" 
 
 def start_loading():
     st.session_state.is_loading = True
@@ -35,7 +35,7 @@ def sanitize_for_gsheet(text):
     if text_str.startswith(("=", "+", "-", "@")): return "'" + text_str
     return text_str
 
-# --- 2. ตั้งค่า Config ---
+# --- 2. ตั้งค่า Config จาก Secrets ---
 SHEET_NAME = st.secrets["SHEET_NAME"]
 DRIVE_FOLDER_ID = st.secrets["DRIVE_FOLDER_ID"]
 GAS_APP_URL = st.secrets["GAS_APP_URL"]
@@ -52,6 +52,8 @@ if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if 'officer_name' not in st.session_state: st.session_state['officer_name'] = ""
 if 'officer_role' not in st.session_state: st.session_state['officer_role'] = ""
 if 'current_user_pwd' not in st.session_state: st.session_state['current_user_pwd'] = ""
+if 'search_results_df' not in st.session_state: st.session_state['search_results_df'] = None
+if 'edit_data' not in st.session_state: st.session_state['edit_data'] = None
 if 'df_tra' not in st.session_state: st.session_state['df_tra'] = None
 if 'traffic_page' not in st.session_state: st.session_state['traffic_page'] = 'teacher'
 
@@ -88,7 +90,7 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-# --- 🎨 CSS ตกแต่ง (คงเดิมตามสั่ง) ---
+# --- 🎨 CSS ตกแต่ง ---
 st.markdown("""
     <style>
         .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: #fff; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -98,7 +100,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ ฟังก์ชันสร้าง PDF (แก้ไขถมดำ + ฟอนต์)
+# ✅ ฟังก์ชันสร้าง PDF
 def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -128,7 +130,7 @@ def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="N/A"):
     if face_url: draw_img(face_url, 450, height - 200, 90, 110)
     c.save(); buffer.seek(0); return buffer
 
-# ✅ ฟังก์ชันงานจราจร (Traffic Module)
+# ✅ ฟังก์ชันหลักของงานจราจร (Traffic Module)
 def traffic_module():
     if st.session_state.df_tra is None:
         sheet = connect_gsheet()
@@ -143,6 +145,7 @@ def traffic_module():
         total = len(df)
         has_lic = len(df[df['C7'] == "✅ มี"])
         has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
+        
         m1, m2, m3 = st.columns(3)
         m1.metric("ลงทะเบียนแล้ว", f"{total} คัน")
         m2.metric("มีใบขับขี่", f"{has_lic} คน", f"{round(has_lic/total*100 if total>0 else 0)}%")
@@ -154,6 +157,7 @@ def traffic_module():
         df = st.session_state.df_tra
         mask = (df['C1'].str.contains(q, case=False) | df['C2'].str.contains(q) | df['C6'].str.contains(q, case=False))
         res = df[mask]
+        
         for i, row in res.iterrows():
             v = row.tolist()
             with st.expander(f"📌 {v[6]} | {v[1]}"):
@@ -168,7 +172,7 @@ def traffic_module():
                             pts = st.number_input("แต้ม", 1, 50, 5)
                             note = st.text_area("เหตุผล")
                             if st.form_submit_button("🔴 ตัดคะแนน"):
-                                st.success("บันทึกแล้ว (กรุณา Refresh ข้อมูล)")
+                                st.success("บันทึกแล้ว (ฟังก์ชันกำลังพัฒนา)")
 
 # --- 5. Main UI Logic ---
 logo_path = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
@@ -177,9 +181,81 @@ with c_logo:
     if logo_path: st.image(logo_path, width=90)
 with c_title: st.title(f"ระบบจราจร {SHEET_NAME}")
 
+# --- หน้าลงทะเบียน (Student) กลับมาแล้วครับ! ---
 if st.session_state['page'] == 'student':
     st.info("📝 ลงทะเบียนรถและทำบัตรอนุญาตดิจิทัล")
-    # ... (ส่วน Form ลงทะเบียนเหมือนเดิมของคุณครู)
+    with st.form("reg_form"):
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            prefix = st.selectbox("คำนำหน้า", ["นาย", "นางสาว", "เด็กชาย", "เด็กหญิง", "นาง", "ครู"])
+            fname = st.text_input("ชื่อ-นามสกุล", key="reg_fname")
+        std_id = sc2.text_input("รหัสนักเรียน/รหัสบุคลากร", key="reg_id")
+        
+        sc3, sc4 = st.columns(2)
+        level = sc3.selectbox("ชั้น", ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ครู,บุคลากร", "พ่อค้าแม่ค้า"])
+        room = sc4.text_input("ห้อง (เช่น 0-13)", key="reg_room")
+        
+        pin = st.text_input("ตั้งรหัส PIN 6 หลัก", type="password", max_chars=6, key="reg_pin")
+        
+        sc5, sc6 = st.columns(2)
+        brand = sc5.selectbox("ยี่ห้อรถ", ["Honda", "Yamaha", "Suzuki", "GPX", "Kawasaki", "อื่นๆ"], key="reg_brand")
+        color = sc6.text_input("สีรถ", key="reg_color")
+        plate = st.text_input("ทะเบียนรถ", placeholder="เช่น 1กข 1234 ร้อยเอ็ด", key="reg_plate")
+        
+        doc_cols = st.columns(3)
+        ls = doc_cols[0].radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True)
+        ts = doc_cols[1].radio("ภาษี/พรบ", ["✅ ปกติ", "❌ ขาด"], horizontal=True)
+        hs = doc_cols[2].radio("หมวกกันน็อค", ["✅ มี", "❌ ไม่มี"], horizontal=True)
+        
+        st.write("📸 **อัปโหลดภาพ (จำเป็น 3 รูป)**")
+        up1, up2, up3 = st.columns(3)
+        p_face = up1.file_uploader("1. รูปเจ้าของรถ", type=['jpg','png','jpeg'])
+        p_back = up2.file_uploader("2. รูปหลังรถ (ป้ายทะเบียน)", type=['jpg','png','jpeg'])
+        p_side = up3.file_uploader("3. รูปข้างรถ (เต็มคัน)", type=['jpg','png','jpeg'])
+        
+        pdpa = st.checkbox("ยินยอมให้โรงเรียนเก็บข้อมูลตามนโยบาย PDPA")
+        
+        submit_btn = st.form_submit_button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True, on_click=start_loading, disabled=st.session_state.is_loading)
+
+        if submit_btn:
+            if not fname or not std_id or not p_face or not p_back or not p_side:
+                st.error("❌ ข้อมูลไม่ครบ กรุณากรอกข้อมูลและอัปโหลดรูปภาพให้ครบ 3 รูป")
+                st.session_state.is_loading = False
+            else:
+                try:
+                    sheet = connect_gsheet()
+                    all_data = sheet.get_all_values()
+                    next_row = len(all_data) + 1
+                    
+                    if str(std_id) in [row[2] for row in all_data if len(row) > 2]:
+                        st.error("❌ รหัสนี้ลงทะเบียนแล้ว!")
+                        st.session_state.is_loading = False
+                    else:
+                        progress = st.progress(0)
+                        l_face = upload_to_drive(p_face, f"{std_id}_Face.jpg"); progress.progress(30)
+                        l_back = upload_to_drive(p_back, f"{std_id}_Back.jpg"); progress.progress(60)
+                        l_side = upload_to_drive(p_side, f"{std_id}_Side.jpg"); progress.progress(85)
+                        
+                        if l_face and l_back and l_side:
+                            new_data = [
+                                datetime.now().strftime('%d/%m/%Y %H:%M'),
+                                f"{prefix}{fname}", str(std_id), f"{level}/{room}",
+                                brand, color, plate, ls, ts, hs, l_back, l_side, "", "100", l_face, str(pin)
+                            ]
+                            sheet.update(range_name=f"A{next_row}", values=[new_data])
+                            progress.progress(100)
+                            st.success(f"✅ ลงทะเบียนสำเร็จ! (แถวที่ {next_row})")
+                            st.balloons()
+                            time.sleep(2)
+                            st.session_state.is_loading = False
+                            st.rerun()
+                        else:
+                            st.error("❌ อัปโหลดรูปภาพไม่สำเร็จ!")
+                            st.session_state.is_loading = False
+                except Exception as e:
+                    st.error(f"❌ เกิดข้อผิดพลาด: {e}")
+                    st.session_state.is_loading = False
+
     st.write("---")
     if st.button("🆔 ดูบัตรอนุญาต (Student Portal)", use_container_width=True): go_to_page('portal')
     if st.button("🔐 สำหรับเจ้าหน้าที่", use_container_width=True): go_to_page('teacher')
@@ -202,8 +278,6 @@ elif st.session_state['page'] == 'portal':
             v = st.session_state.portal_user
             score = int(v[13]) if str(v[13]).isdigit() else 100
             score_col = "#16a34a" if score >= 80 else ("#ca8a04" if score >= 50 else "#dc2626")
-            
-            # --- 🚩 ปรับปรุงหน้าบัตรให้สมดุล (รูปซ้าย ข้อมูลขวา) ---
             st.markdown(f"""
                 <div class="atm-card">
                     <div class="atm-header">
@@ -227,7 +301,6 @@ elif st.session_state['page'] == 'portal':
 
 elif st.session_state['page'] == 'teacher':
     if not st.session_state.logged_in:
-        # ... (ส่วน Login เหมือนเดิม)
         _, center_col, _ = st.columns([1, 2, 1])
         with center_col:
             st.markdown("### 🔐 เจ้าหน้าที่เข้าสู่ระบบ")
