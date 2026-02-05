@@ -264,7 +264,7 @@ if st.session_state['page'] == 'student':
         doc1, doc2, doc3 = st.columns(3)
         ls = doc1.radio("ใบขับขี่", ["✅ มี", "❌ ไม่มี"], horizontal=True); ts = doc2.radio("ภาษี", ["✅ ปกติ", "❌ ขาด"], horizontal=True); hs = doc3.radio("หมวก", ["✅ มี", "❌ ไม่มี"], horizontal=True)
         up1, up2, up3 = st.columns(3)
-        p1 = up1.file_uploader("1. รูปหน้า", type=['jpg','png','jpeg']); p2 = up2.file_uploader("2. รูปทะเบียน", type=['jpg','png','jpeg']); p3 = up3.file_uploader("3. รูปข้างรถ", type=['jpg','png','jpeg'])
+        p1 = up1.file_uploader("1.รูปเจ้าของรถ", type=['jpg','png','jpeg']); p2 = up2.file_uploader("2. รูปทะเบียน", type=['jpg','png','jpeg']); p3 = up3.file_uploader("3. รูปข้างรถ", type=['jpg','png','jpeg'])
         if st.form_submit_button("ส่งข้อมูลลงทะเบียน", type="primary", use_container_width=True):
             if fname and sid and p1 and p2 and p3:
                 try:
