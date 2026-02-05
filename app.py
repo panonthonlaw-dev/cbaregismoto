@@ -325,12 +325,12 @@ elif st.session_state['page'] == 'portal':
         l_tag = f'<img src="{logo_base64}" style="width:45px; vertical-align:middle; margin-right:10px;">' if logo_base64 else '🏫 '
         st.markdown(f"""
             <div class="atm-card">
-                <div class="atm-header"><div class="atm-school-name">{l_tag}{SHEET_NAME}</div></div>
+                <div class="atm-header"><div class="atm-school-name">{l_tag}ระบบจราจรโรงเรียนจันทรุเบกษาอนุสร</div></div>
                 <div style="display: flex; gap: 20px; margin-top: 15px;">
                     <img src="{get_img_link(v[14])}" class="atm-photo">
                     <div style="flex: 1; color: #1e293b; line-height: 1.6;">
                         <div style="font-size: 1.2rem; font-weight: bold; border-bottom: 2px solid #eee; margin-bottom: 5px; color: #1e3a8a;">{v[1]}</div>
-                        <div style="font-size: 0.9rem;">🆔 {v[2]} | 🏍️ {v[6]}</div>
+                        <div style="font-size: 0.9rem;">🆔 รหัส {v[2]} | ทะเบียน {v[6]}</div>
                         <div style="font-size: 0.9rem;">📚 ชั้น: {v[3]}</div>
                     </div>
                 </div>
